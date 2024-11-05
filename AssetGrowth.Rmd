@@ -1,0 +1,45 @@
+```{r}
+library(ggplot2)
+library(dplyr)
+
+data = read_csv("https://uwmadison.box.com/shared/static/81h2znsto477hgtn99nycawhsy626bae.csv")
+
+start_date = "2020-01-01"
+end_date = Sys.Date()
+
+data_filtered = data %>%
+  filter(Date >= start_date & Date <= end_date) %>%
+  filter(!is.na(Adjusted))  # Drop rows with NA in Adjusted price
+
+# Determine growth per company 
+data_growth = data_filtered %>%
+  group_by(Symbol, Type, Sector, Industry) %>%
+  arrange(Date) %>%
+  summarize(
+    growth = if_else(last(Adjusted) > first(Adjusted), "Growth", "No Growth"),
+    category = ifelse(first(Type) == "Stock", "Stock", "Other"),
+    facet_var = ifelse(first(Type) == "Stock", first(Sector), first(Type)),
+    .groups = 'drop'
+  )
+
+# Aggregate by category and facet_var and growth status
+growth_summary = data_growth %>%
+  count(category, facet_var, growth)
+
+
+# Plot the bar chart for growth within sectors, split into Stocks and Other categories
+ggplot(growth_summary, aes(x = facet_var, y = n, fill = growth)) +
+  geom_bar(stat = "identity", position = "stack") +
+  coord_flip() +  # Horizontal bar chart
+  facet_wrap(~ category, scales = "free_y", ncol = 1, strip.position = "top") + # Facet by category (Stocks vs Other)
+  labs(title = paste("Growth in Adjusted Price by Type of Investment\n", 
+                    "From ", start_date, " to ", end_date, sep = ""), 
+       x = "Type of Investment", 
+       y = "Number of Companies",
+       fill = "Growth Status") +
+  scale_fill_manual(values = c("Growth" = "green", "No Growth" = "red")) +
+  theme_minimal() +
+  theme(strip.text = element_text(size = 12, face = "bold"),
+        strip.background = element_rect(fill = "lightgrey"))
+```
+
